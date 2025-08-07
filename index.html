@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <title>Absensi QR</title>
+  <title>Absensi QR Mandiri</title>
   <style>
     #preview {
       width: 100%;
@@ -14,29 +14,39 @@
 </head>
 <body>
   <h2>Absensi QR Mandiri</h2>
-  <input type="text" id="npm" placeholder="NPM"><br>
-  <input type="text" id="nama" placeholder="Nama"><br><br>
-  <button onclick="startScan()">Scan QR</button>
+  <input type="text" id="npm" placeholder="NPM (hanya angka)" /><br />
+  <input type="text" id="nama" placeholder="Nama Lengkap" /><br /><br />
+  <button onclick="startScan()">Mulai Scan QR</button>
+  <button onclick="stopScan()">Berhenti Scan</button>
   <p id="result"></p>
 
   <div id="preview"></div>
 
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <script>
-    const scriptURL = 'https://script.google.com/macros/s/AKfycbx88h0OP8IGbmDtcHjicgNEQ7VCmi5AOZStOOjHpU-ki7YFCmFPSdUgc7eR5k0mUvjA/exec'; // Ganti dengan milikmu
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbzztbyAg5zUt2sxJkyVZFOWEGBAjpqOTU9sCQUtF_kYFvZbvjLbpswvSG7qEDXsuQ98/exec'; // Ganti jika diperlukan
     let html5QrCode;
     let isScanning = false;
 
-    async function startScan() {
+    function getFormattedDate() {
+      const now = new Date();
+      return now.toISOString().replace("T", " ").substring(0, 19); // Format: YYYY-MM-DD HH:mm:ss
+    }
+
+    function startScan() {
       const npm = document.getElementById("npm").value.trim();
       const nama = document.getElementById("nama").value.trim();
-      if (!npm || !nama) {
-        alert("Isi NPM dan Nama terlebih dahulu!");
+      const resultEl = document.getElementById("result");
+
+      if (!npm.match(/^\d+$/)) {
+        alert("NPM harus berupa angka!");
         return;
       }
 
-      const resultEl = document.getElementById("result");
-      const qrRegion = document.getElementById("preview");
+      if (!nama) {
+        alert("Nama tidak boleh kosong!");
+        return;
+      }
 
       if (isScanning) return;
 
@@ -44,37 +54,53 @@
       const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
       isScanning = true;
-      resultEl.textContent = "📷 Menunggu QR...";
+      resultEl.textContent = "📷 Menunggu scan QR...";
 
-      await html5QrCode.start(
+      html5QrCode.start(
         { facingMode: "environment" },
         config,
         (decodedText) => {
           html5QrCode.stop().then(() => {
             isScanning = false;
-            resultEl.textContent = `✅ QR terbaca: ${decodedText} - Mengirim...`;
+            resultEl.textContent = `✅ QR terbaca: ${decodedText}, mengirim...`;
 
-            const mode = decodedText.toLowerCase(); // checkin / checkout
-            const waktu = new Date().toLocaleString("id-ID");
+            const mode = decodedText.toLowerCase(); // 'check-in' atau 'check-out'
+            const waktu = getFormattedDate();
+
+            const formData = new FormData();
+            formData.append("npm", npm);
+            formData.append("nama", nama);
+            formData.append("mode", mode);
+            formData.append("waktu", waktu);
 
             fetch(scriptURL, {
               method: 'POST',
-              body: JSON.stringify({ npm, nama, mode, waktu }),
-              headers: { 'Content-Type': 'application/json' }
+              body: formData
             })
-            .then(res => res.text())
+            .then(response => response.text())
             .then(msg => {
               resultEl.textContent = msg;
             })
-            .catch(err => {
-              resultEl.textContent = "❌ Gagal mengirim: " + err;
+            .catch(error => {
+              resultEl.textContent = "❌ Gagal mengirim: " + error;
             });
           });
         },
         (errorMessage) => {
-          // Bisa log error jika diperlukan
+          // Tidak ditampilkan agar tidak mengganggu
         }
       );
+    }
+
+    function stopScan() {
+      if (html5QrCode && isScanning) {
+        html5QrCode.stop().then(() => {
+          isScanning = false;
+          document.getElementById("result").textContent = "🔴 Scan dihentikan.";
+        }).catch(err => {
+          document.getElementById("result").textContent = "❌ Gagal menghentikan scan: " + err;
+        });
+      }
     }
   </script>
 </body>
